@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     // 3) Check timer (10 minutes)
     const { data: balanceRow, error: fetchErr } = await supabase
       .from('balances')
-      .select('last_claim, balance, total_claims')
+      .select('last_claim, balance, total_claims, wallet_address')
       .eq('user_id', user.id)
       .single();
 
