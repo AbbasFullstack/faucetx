@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
       });
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     } else {
-      const updateData: any = {
+      const updateData: { balance: number; total_claims: number; last_claim: string; wallet_address?: string } = {
         balance: currentBalance + reward,
         total_claims: currentClaims + 1,
         last_claim: now.toISOString(),
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
       newBalance: currentBalance + reward,
       nextClaimAt: new Date(now.getTime() + 10 * 60 * 1000).toISOString(),
     });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message || 'Server error' }, { status: 500 });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'Server error' }, { status: 500 });
   }
 }
