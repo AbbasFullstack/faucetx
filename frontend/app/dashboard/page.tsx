@@ -1,7 +1,8 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import type { User } from '@supabase/supabase-js';
 import { Droplets, LogOut, Timer, Trophy, Wallet, Zap, RefreshCw, History, ExternalLink, Receipt } from 'lucide-react';
 
 interface Claim {
@@ -19,11 +20,13 @@ interface Payout {
   created_at: string;
 }
 
+type LeaderboardEntry = { user_id: string; total_claims: number; balance: number };
+
 const MIN_WITHDRAW = 0.0005;
 
 export default function Dashboard() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [balance, setBalance] = useState<number>(0);
   const [totalClaims, setTotalClaims] = useState<number>(0);
   const [walletAddress, setWalletAddress] = useState<string>('');
@@ -33,7 +36,7 @@ export default function Dashboard() {
   const [answer, setAnswer] = useState('');
   const [claims, setClaims] = useState<Claim[]>([]);
   const [payouts, setPayouts] = useState<Payout[]>([]);
-  const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState<{ amount: number } | null>(null);
@@ -41,20 +44,15 @@ export default function Dashboard() {
   const [withdrawResult, setWithdrawResult] = useState<{ txHash: string; amount: number } | null>(null);
   const [withdrawError, setWithdrawError] = useState('');
 
-  // Auth + initial data
-  useEffect(() => {
-    (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.push('/auth');
-        return;
-      }
-      setUser(session.user);
-      await loadData(session.user.id);
-    })();
+  const generateCaptcha = useCallback(() => {
+    const a = Math.floor(Math.random() * 20) + 5;
+    const b = Math.floor(Math.random() * 10) + 1;
+    const op: '+' | '-' = Math.random() > 0.5 ? '+' : '-';
+    setCaptcha({ a, b, op });
+    setAnswer('');
   }, []);
 
-  const loadData = async (userId: string) => {
+  const loadData = useCallback(async (userId: string, now: number) => {
     const { data: balRow } = await supabase
       .from('balances')
       .select('*')
@@ -70,7 +68,6 @@ export default function Dashboard() {
       if (balRow.last_claim) {
         const last = new Date(balRow.last_claim).getTime();
         const next = last + 10 * 60 * 1000;
-        const now = Date.now();
         setSecondsLeft(Math.max(0, Math.ceil((next - now) / 1000)));
       }
     } else {
@@ -108,15 +105,20 @@ export default function Dashboard() {
     setLeaderboard(leaders || []);
 
     generateCaptcha();
-  };
+  }, [generateCaptcha]);
 
-  const generateCaptcha = () => {
-    const a = Math.floor(Math.random() * 20) + 5;
-    const b = Math.floor(Math.random() * 10) + 1;
-    const op: '+' | '-' = Math.random() > 0.5 ? '+' : '-';
-    setCaptcha({ a, b, op });
-    setAnswer('');
-  };
+  // Auth + initial data
+  useEffect(() => {
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.push('/auth');
+        return;
+      }
+      setUser(session.user);
+      await loadData(session.user.id, Date.now());
+    })();
+  }, [loadData, router]);
 
   // Countdown timer
   useEffect(() => {
@@ -128,6 +130,7 @@ export default function Dashboard() {
   }, [secondsLeft]);
 
   const saveWallet = async () => {
+    if (!user) return;
     if (!walletInput.startsWith('0x') || walletInput.length !== 42) {
       setError('Invalid wallet address (0x se shuru, 42 characters)');
       return;

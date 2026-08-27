@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ success: true, txHash: tx.hash, amount: balance });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message || 'Payout failed' }, { status: 500 });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'Payout failed' }, { status: 500 });
   }
 }
